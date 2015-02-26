@@ -13,22 +13,16 @@ local function ping()
       return cli:close()
     end
 
-    cli:handshake(function(cli, err)
+    cli:start_read(function(cli, err, data)
       if err then
-        print("Handshake fail:", err)
+        print("Read ERROR:", err)
         return cli:close()
       end
 
-      cli:start_read(function(cli, err, data)
-        if err then
-          print("Read ERROR:", err)
-          return cli:close()
-        end
-
-        print("`".. data.. "`")
-        cli:close(ping)
-      end)
+      print("`".. data.. "`")
+      cli:close(ping)
     end)
+
   end)
 end
 
