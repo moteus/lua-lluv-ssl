@@ -16,10 +16,13 @@ branches:
 before_install:
   - bash .travis/setup_lua.sh
   - bash .travis/setup_uv.sh
+  - git clone --depth=1 --recursive https://github.com/zhaozg/lua-openssl.git
+  - cd lua-openssl
+  - sudo luarocks make rockspecs/openssl-scm-1.rockspec
+  - cd $TRAVIS_BUILD_DIR
+  - sudo luarocks install lluv --server=http://rocks.moonscript.org/dev UV_DIR=$TRAVIS_BUILD_DIR/libuv
 
 install:
-  - sudo luarocks install lluv --server=http://rocks.moonscript.org/dev UV_DIR=$TRAVIS_BUILD_DIR/libuv
-  - sudo luarocks install https://raw.githubusercontent.com/zhaozg/lua-openssl/master/rockspecs/openssl-scm-1.rockspec
   - sudo luarocks make rockspecs/lluv-ssl-scm-0.rockspec 
 
 script: 
