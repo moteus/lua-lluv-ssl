@@ -17,12 +17,12 @@ description = {
 
 dependencies = {
   "lua >= 5.1, < 5.4",
+  "lluv > 0.1.0",
   "openssl",
-  "lluv"
 }
 
 build = {
-  copy_directories = {'doc', 'examples', 'test'},
+  copy_directories = {'examples', 'test'},
 
   type = "builtin",
 
