@@ -1,4 +1,7 @@
 # lua-lluv-ssl
+[![Licence](http://img.shields.io/badge/Licence-MIT-brightgreen.svg)](LICENSE)
+[![Build Status](https://travis-ci.org/moteus/lua-lluv-ssl.svg?branch=master)](https://travis-ci.org/moteus/lua-lluv-ssl)
+
 SSL/TLS sockets for lluv library
 
 ###Create SSL context
