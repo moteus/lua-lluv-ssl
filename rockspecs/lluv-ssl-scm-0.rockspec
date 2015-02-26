@@ -3,7 +3,7 @@ version = "scm-0"
 
 source = {
   url = "https://github.com/moteus/lua-lluv-ssl/archive/master.zip",
-  dir = "lua-lluv-master",
+  dir = "lua-lluv-ssl-master",
 }
 
 description = {
