@@ -162,6 +162,7 @@ end
 
 function SSLSocket:_handshake(cb, err)
   local ret, err = self._ssl:handshake()
+  local handshake_done, write_pending = ret, false
 
   if ret == nil then
     self._skt:stop_read()
@@ -177,12 +178,14 @@ function SSLSocket:_handshake(cb, err)
   end
 
   if #msg > 0 then
+    write_pending = true
     self._skt:write(msg, function(_, err)
       if err then
         self._skt:stop_read()
         return cb(self, err)
       end
-      self:_handshake(cb)
+      if handshake_done then cb(self)
+      else self:_handshake(cb) end
     end)
   end
 
@@ -190,7 +193,10 @@ function SSLSocket:_handshake(cb, err)
   if ret == false then return end
 
   self._skt:stop_read()
-  uv.defer(cb, self)
+
+  if not write_pending then
+    uv.defer(cb, self)
+  end
 end
 
 function SSLSocket:close(cb)
