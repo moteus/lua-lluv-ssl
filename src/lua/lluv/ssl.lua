@@ -160,7 +160,7 @@ function SSLSocket:handshake(cb)
   self:_handshake(cb)
 end
 
-function SSLSocket:_handshake(cb)
+function SSLSocket:_handshake(cb, err)
   local ret, err = self._ssl:handshake()
 
   if ret == nil then
@@ -177,7 +177,13 @@ function SSLSocket:_handshake(cb)
   end
 
   if #msg > 0 then
-    self._skt:write(msg, function() self:_handshake(cb) end)
+    self._skt:write(msg, function(_, err)
+      if err then
+        self._skt:stop_read()
+        return cb(self, err)
+      end
+      self:_handshake(cb)
+    end)
   end
 
   -- not ready
