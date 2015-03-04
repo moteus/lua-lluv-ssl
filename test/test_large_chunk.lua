@@ -28,15 +28,19 @@ server:bind(HOST, PORT):listen(function(srv, err)
     end
     print(cli, "Server handshake done")
 
-    cli:start_read(function(cli, err, data)
+    local function read_cb(cli, err, data)
       if err then
         if err:name() ~= 'EOF' then
           print("Client read error:", err)
         end
         return cli:close()
       end
+      cli:stop_read():start_read(read_cb)
+
+      print(server_recived, #data)
       server_recived = server_recived + #data
       assert(('*'):rep(#data) == data)
+      
       assert(server_recived <= #str)
       if server_recived == #str then
         uv.timer():start(1000, function()
@@ -44,7 +48,9 @@ server:bind(HOST, PORT):listen(function(srv, err)
           uv.stop()
         end)
       end
-    end)
+    end
+    
+    cli:start_read(read_cb)
   end)
 end)
 
