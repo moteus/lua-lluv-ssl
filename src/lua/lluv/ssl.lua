@@ -247,9 +247,7 @@ function SSLSocket:stop_read()
   return self
 end
 
-function SSLSocket:write(data, cb)
-  local msg = {}
-
+local function append_msg(self, msg, data, cb)
   for pos, chunk in chunks(data, OCHUNK_SIZE) do
     local ret, err = self._ssl:write(chunk)
     if ret == nil then
@@ -262,6 +260,21 @@ function SSLSocket:write(data, cb)
       local chunk, err = self._out:read()
       if not chunk or #chunk == 0 then break end
       msg[#msg + 1] = chunk
+    end
+  end
+
+  return msg
+end
+
+function SSLSocket:write(data, cb)
+  local msg = {}
+  if type(data) == 'string' then
+    local ok, err = append_msg(self, msg, data, cb)
+    if not ok then return nil, err end
+  else
+    for i = 1, #data do
+      local ok, err = append_msg(self, msg, data[i], cb)
+      if not ok then return nil, err end
     end
   end
 
