@@ -28,6 +28,9 @@ install:
 script: 
   - cd test
   - lua test.lua
+  - lua test_large_chunk.lua 65535
+  - lua test_large_chunk.lua 1048576
+  - lua test_large_chunk.lua 16777216
 
 # after_success:
 #   - luacov-coveralls -j c.report.json
