@@ -180,7 +180,7 @@ local OCHUNK_SIZE = BUFFER_SIZE
 
 function SSLDecoder:__init(ctx, mode)
   self._ibuffer = Buffer.new()
-  self._obuffer = ut.Buffer.new()
+  self._obuffer = Buffer.new()
 
   self._inp  = ssl.bio.mem(BUFFER_SIZE)
   self._out  = ssl.bio.mem(BUFFER_SIZE)
@@ -365,7 +365,10 @@ function SSLSocket:start_read(cb)
 
     if self._read_cb ~= cb then return end
 
-    if err then return self._read_cb(self, err) end
+    if err then
+      self:stop_read()
+      return cb(self, err)
+    end
 
     while self:_reading(cb) do
       local chunk = self._dec:read()
