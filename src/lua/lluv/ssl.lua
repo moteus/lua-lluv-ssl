@@ -287,8 +287,8 @@ function SSLSocket:__init(ctx, mode, socket)
   self._skt  = socket or uv.tcp()
   self._mode = (mode == 'server')
   self._dec  = SSLDecoder.new(self._ctx, self._mode)
-  self._on_write  = function(_, err, data, cb) cb(self, err, data) end
-  self._on_write2 = function(_, err, data, ctx) ctx[1](self, err, data, ctx[2]) end
+  self._on_write  = function(_, err, cb) cb(self, err) end
+  self._on_write2 = function(_, err, ctx) ctx[1](self, err, ctx[2]) end
   return self
 end
 
