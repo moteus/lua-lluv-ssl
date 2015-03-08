@@ -287,6 +287,8 @@ function SSLSocket:__init(ctx, mode, socket)
   self._skt  = socket or uv.tcp()
   self._mode = (mode == 'server')
   self._dec  = SSLDecoder.new(self._ctx, self._mode)
+  self._on_write  = function(_, err, data, cb) cb(self, err, data) end
+  self._on_write2 = function(_, err, data, ctx) ctx[1](self, err, data, ctx[2]) end
   return self
 end
 
@@ -406,7 +408,7 @@ function SSLSocket:stop_read()
   return self
 end
 
-function SSLSocket:write(data, cb)
+function SSLSocket:write(data, cb, ctx)
   if type(data) == 'string' then
     if trace then trace("SSL TX>", os.time(), hex(data)) end
     self._dec:write(data)
@@ -427,8 +429,12 @@ function SSLSocket:write(data, cb)
 
   if #msg > 0 then
     if #msg == 1 then msg = msg[1] end
-    if cb then self._skt:write(msg, function(s, ...) cb(self, ...) end)
-    else self._skt:write(msg) end
+    if cb then
+      if ctx == nil then self._skt:write(msg, self._on_write, cb)
+      else self._skt:write(msg, self._on_write2, {cb, ctx}) end
+    else
+      self._skt:write(msg)
+    end
   elseif cb then
     uv.defer(self, cb)
   end
