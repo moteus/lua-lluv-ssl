@@ -37,7 +37,6 @@ server:bind(HOST, PORT):listen(function(srv, err)
       end
       cli:stop_read():start_read(read_cb)
 
-      print(server_recived, #data)
       server_recived = server_recived + #data
       assert(('*'):rep(#data) == data)
       
