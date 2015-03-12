@@ -155,9 +155,11 @@ end
 end
 
 local function OpenSSL_Error(msg, ext)
-  local no, err = ssl.error()
+  local no, reason, lib, fn = ssl.error()
   if no then
-    local _, _, lib, fn, reason = ut.usplit(err, ":", true)
+    if not fn then local _
+      _, _, lib, fn, reason = ut.usplit(reason, ":", true)
+    end
     msg = msg .. ": " .. reason
     ext = lib .. "/" .. fn
     return SSLError.new(no, "ESSL", msg, ext)
