@@ -154,7 +154,16 @@ end
 
 end
 
-local function OpenSSL_Error(msg, ext) return SSLError.new(-1, "ESSL", msg, ext) end
+local function OpenSSL_Error(msg, ext)
+  local no, err = ssl.error()
+  if no then
+    local _, _, lib, fn, reason = ut.usplit(err, ":", true)
+    msg = msg .. ": " .. reason
+    ext = lib .. "/" .. fn
+    return SSLError.new(no, "ESSL", msg, ext)
+  end
+  return SSLError.new(-1, "ESSL", msg, ext)
+end
 
 local SSLDecoder = ut.class() do
 
@@ -307,7 +316,7 @@ function SSLSocket:_handshake(cb, err)
 
   if ret == nil then
     self._skt:stop_read()
-    err = OpenSSL_Error("Handshake error: " .. tostring(err))
+    err = OpenSSL_Error("Handshake error")
     return uv.defer(cb, self, err)
   end
 
@@ -550,13 +559,13 @@ end
 function SSLSocket:verifypeer()
   local c, s = self:getpeercert()
   if not c then
-    local err = OpenSSL_Error("Authorize error: " .. tostring(s or 'no peer certificate'))
+    local err = OpenSSL_Error("Authorize error(peer certificate)")
     return nil, err
   end
 
   local ok, err = self._ssl:getpeerverification()
   if not ok then
-    err = OpenSSL_Error("Authorize error: " .. tostring(err or 'authorization failed'))
+    err = OpenSSL_Error("Authorize error(authorization failed)")
     return nil, err
   end
 
