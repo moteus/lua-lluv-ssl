@@ -154,17 +154,30 @@ end
 
 end
 
-local function OpenSSL_Error(msg, ext)
+local function ssl_last_error()
   local no, reason, lib, fn = ssl.error()
+  if not no then return end
+  if not fn then local _
+    _, _, lib, fn, reason = ut.usplit(reason, ":", true)
+  end
+  return no, reason, lib, fn
+end
+
+local function ssl_clear_error()
+  ssl.error(true)
+end
+
+local function OpenSSL_TryError(msg)
+  local no, reason, lib, fn = ssl_last_error()
   if no then
-    if not fn then local _
-      _, _, lib, fn, reason = ut.usplit(reason, ":", true)
-    end
     msg = msg .. ": " .. reason
-    ext = lib .. "/" .. fn
+    local ext = lib .. "/" .. fn
     return SSLError.new(no, "ESSL", msg, ext)
   end
-  return SSLError.new(-1, "ESSL", msg, ext)
+end
+
+local function OpenSSL_Error(msg, ext)
+  return OpenSSL_TryError(msg) or SSLError.new(-1, "ESSL", msg, ext)
 end
 
 local SSLDecoder = ut.class() do
@@ -206,28 +219,49 @@ function SSLDecoder:input(data)
   return self
 end
 
-function SSLDecoder:read()
+function SSLDecoder:_in_read()
   local chunk, err = self._ssl:read()
-  if chunk and #chunk > 0 then return chunk end
+  if not chunk then
+    err = OpenSSL_TryError("SSLDecoder:input:read error")
+    if err then return nil, err end
+  elseif #chunk > 0 then return chunk end
+end
+
+function SSLDecoder:_in_write(chunk)
+  local n, err = self._inp:write(chunk)
+
+  if not n then
+    self._ibuffer:prepend(chunk)
+    err = OpenSSL_TryError("SSLDecoder:input:write error")
+    return nil, err
+  end
+
+  if n < #chunk then
+    self._ibuffer:prepend((chunk:sub(n+1)))
+  end
+
+  return n
+end
+
+function SSLDecoder:read()
+  ssl_clear_error()
+
+  local chunk, err = self:_in_read()
+  if chunk then return chunk end
+  if err then return nil, err end
 
   while not self._ibuffer:empty() do
     chunk = self._ibuffer:read_some(ICHUNK_SIZE)
 
-    local n, err = self._inp:write(chunk)
+    local n, err = self:_in_write(chunk)
+
     if trace then trace("SSL TX DEC>", n, err, hex(chunk)) end
 
-    if not n then
-      self._ibuffer:prepend(chunk)
-      return nil, err
-    end
+    if not n then return nil, err end
 
-    if n < #chunk then
-      self._ibuffer:prepend((chunk:sub(n+1)))
-    end
-
-    chunk, err = self._ssl:read()
-
-    if chunk and #chunk > 0 then return chunk end
+    chunk, err = self:_in_read()
+    if chunk then return chunk end
+    if err then return nil, err end
   end
 
   return
@@ -244,28 +278,49 @@ function SSLDecoder:write(data)
   return self
 end
 
-function SSLDecoder:output()
+function SSLDecoder:_out_read()
   local chunk, err = self._out:read()
-  if chunk and #chunk > 0 then return chunk end
+  if not chunk then
+    err = OpenSSL_TryError("SSLDecoder:output:read error")
+    if err then return nil, err end
+  elseif #chunk > 0 then return chunk end
+end
+
+function SSLDecoder:_out_write(chunk)
+  local n, err = self._ssl:write(chunk)
+
+  if not n then
+    self._obuffer:prepend(chunk)
+    err = OpenSSL_TryError("SSLDecoder:output:write error")
+    return nil, err
+  end
+
+  if n < #chunk then
+    self._obuffer:prepend((chunk:sub(n+1)))
+  end
+
+  return n
+end
+
+function SSLDecoder:output()
+  ssl_clear_error()
+
+  local chunk, err = self:_out_read()
+  if chunk then return chunk end
+  if err then return nil, err end
 
   while not self._obuffer:empty() do
     chunk = self._obuffer:read_some(OCHUNK_SIZE)
 
-    local n, err = self._ssl:write(chunk)
+    local n, err = self:_out_write(chunk)
 
     if trace then trace("SSL TX ENC>", n, err, hex(chunk)) end
 
-    if not n then
-      self._obuffer:prepend(chunk)
-      return nil, err
-    end
+    if not n then return nil, err end
 
-    if n < #chunk then
-      self._obuffer:prepend((chunk:sub(n+1)))
-    end
-
-    chunk, err = self._out:read()
-    if chunk and #chunk > 0 then return chunk end
+    chunk, err = self:_out_read()
+    if chunk then return chunk end
+    if err then return nil, err end
   end
 
   return
@@ -276,7 +331,11 @@ function SSLDecoder:handshake_write(data)
 end
 
 function SSLDecoder:handshake()
-  return self._ssl:handshake()
+  local ret, err = self._ssl:handshake()
+  if ret == nil then
+    return nil, OpenSSL_Error("Handshake error")
+  end
+  return ret, err
 end
 
 function SSLDecoder:close()
@@ -314,18 +373,23 @@ end
 
 function SSLSocket:_handshake(cb, err)
   local ret, err = self._dec:handshake()
-  local handshake_done, write_pending = ret, false
-
   if ret == nil then
     self._skt:stop_read()
-    err = OpenSSL_Error("Handshake error")
     return uv.defer(cb, self, err)
   end
+
+  local handshake_done, write_pending = ret, false
 
   local msg = {}
   while true do
     local chunk, err = self._dec:output()
-    if not chunk then break end
+    if not chunk then 
+      if err then
+        self._skt:stop_read()
+        return uv.defer(cb, self, err)
+      end
+      break
+    end
     msg[#msg + 1] = chunk
   end
 
@@ -384,8 +448,16 @@ function SSLSocket:start_read(cb)
     end
 
     while self:_reading(cb) do
-      local chunk = self._dec:read()
-      if not chunk then return end
+      local chunk, err = self._dec:read()
+      if not chunk then
+        if err then
+          local cb = self._read_cb
+          if trace then trace("SSL RX>", os.time(), self._read_cb, nil, err) end
+          self:_stop_read()
+          return cb(self, err)
+        end
+        return
+      end
       if trace then trace("SSL RX>", os.time(), self._read_cb, hex(chunk)) end
       self._read_cb(self, nil, chunk)
     end
@@ -432,8 +504,16 @@ function SSLSocket:write(data, cb, ctx)
 
   local msg = {}
   while true do
-    local chunk = self._dec:output()
-    if not chunk then break end
+    local chunk, err = self._dec:output()
+    if not chunk then 
+      if err then
+        if trace then trace("SSL RAW TX>", os.time(), nil, err) end
+        if not cb then return nil, err end
+        uv.defer(self, cb, err)
+        return self
+      end
+      break
+    end
     if trace then trace("SSL RAW TX>", os.time(), hex(chunk)) end
     msg[#msg + 1] = chunk
   end
