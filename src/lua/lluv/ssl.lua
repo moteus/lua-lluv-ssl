@@ -163,8 +163,25 @@ local function ssl_last_error()
   return no, reason, lib, fn
 end
 
+local function ssl_error_info(err)
+  assert(err)
+  local no, reason, lib, fn = ssl.error(err)
+  assert(err == no)
+  if not fn then local _
+    _, _, lib, fn, reason = ut.usplit(reason, ":", true)
+  end
+  return no, reason, lib, fn
+end
+
 local function ssl_clear_error()
   ssl.error(true)
+end
+
+local function OpenSSL_WrapError(no, msg)
+  local no, reason, lib, fn = ssl_error_info(no)
+  msg = msg .. ": " .. reason
+  local ext = lib .. "/" .. fn
+  return SSLError.new(no, "ESSL", msg, ext)
 end
 
 local function OpenSSL_TryError(msg)
@@ -178,6 +195,10 @@ end
 
 local function OpenSSL_Error(msg, ext)
   return OpenSSL_TryError(msg) or SSLError.new(-1, "ESSL", msg, ext)
+end
+
+local function OpenSSL_EOF(msg, ext)
+  return OpenSSL_TryError(msg) or SSLError.new(-2, "EOF", msg, ext)
 end
 
 local SSLDecoder = ut.class() do
@@ -222,9 +243,13 @@ end
 function SSLDecoder:_in_read()
   local chunk, err = self._ssl:read()
   if not chunk then
-    err = OpenSSL_TryError("SSLDecoder:input:read error")
-    if err then return nil, err end
-  elseif #chunk > 0 then return chunk end
+    if chunk == nil then err = OpenSSL_TryError("SSLDecoder:input:read error")
+    elseif err == 0 then err = OpenSSL_EOF("End of SSL input stream")
+    else chunk, err = nil end --! @check what can we do here?
+    return chunk, err
+  end
+
+  if #chunk > 0 then return chunk end
 end
 
 function SSLDecoder:_in_write(chunk)
@@ -232,7 +257,7 @@ function SSLDecoder:_in_write(chunk)
 
   if not n then
     self._ibuffer:prepend(chunk)
-    err = OpenSSL_TryError("SSLDecoder:input:write error")
+    err = OpenSSL_WrapError(err, "SSLDecoder:input:write error")
     return nil, err
   end
 
@@ -281,9 +306,13 @@ end
 function SSLDecoder:_out_read()
   local chunk, err = self._out:read()
   if not chunk then
-    err = OpenSSL_TryError("SSLDecoder:output:read error")
-    if err then return nil, err end
-  elseif #chunk > 0 then return chunk end
+    err = OpenSSL_WrapError(err, "SSLDecoder:output:read error")
+    return nil, err
+  end
+
+  if #chunk > 0 then
+    return chunk
+  end
 end
 
 function SSLDecoder:_out_write(chunk)
@@ -291,7 +320,9 @@ function SSLDecoder:_out_write(chunk)
 
   if not n then
     self._obuffer:prepend(chunk)
-    err = OpenSSL_TryError("SSLDecoder:output:write error")
+    if n == nil     then err = OpenSSL_TryError("SSLDecoder:output:write error")
+    elseif err == 0 then err = OpenSSL_EOF("End of SSL output stream")
+    else n, err = nil end --! @check what can we do here?
     return nil, err
   end
 
