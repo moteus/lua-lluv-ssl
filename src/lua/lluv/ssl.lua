@@ -369,6 +369,10 @@ function SSLDecoder:handshake()
   return ret, err
 end
 
+function SSLDecoder:ssl()
+  return self._ssl
+end
+
 function SSLDecoder:close()
   self._inp:close()
   self._out:close()
@@ -649,7 +653,7 @@ end
 
 function SSLSocket:shutdown(cb)
   if not self._shutdowned then
-    self._ssl:shutdown()
+    self._dec:ssl():shutdown()
     if cb then self._skt:shutdown(cb)
     else self._skt:shutdown() end
     self._shutdowned = true
@@ -665,7 +669,7 @@ function SSLSocket:getpeername()
 end
 
 function SSLSocket:getpeercert()
-  return self._ssl:peer()
+  return self._dec:ssl():peer()
 end
 
 function SSLSocket:verifypeer()
@@ -675,7 +679,7 @@ function SSLSocket:verifypeer()
     return nil, err
   end
 
-  local ok, err = self._ssl:getpeerverification()
+  local ok, err = self._dec:ssl():getpeerverification()
   if not ok then
     err = OpenSSL_Error("Authorize error(authorization failed)")
     return nil, err
