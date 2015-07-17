@@ -482,15 +482,14 @@ function SSLSocket:start_read(cb)
       local chunk, err = self._dec:read()
       if not chunk then
         if err then
-          local cb = self._read_cb
-          if trace then trace("SSL RX>", os.time(), self._read_cb, nil, err) end
-          self:_stop_read()
+          if trace then trace("SSL RX>", os.time(), cb, nil, err) end
+          self:stop_read()
           return cb(self, err)
         end
         return
       end
       if trace then trace("SSL RX>", os.time(), self._read_cb, hex(chunk)) end
-      self._read_cb(self, nil, chunk)
+      cb(self, nil, chunk)
     end
   end
 
