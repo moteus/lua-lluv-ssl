@@ -1,5 +1,7 @@
 language: c
 
+sudo: false
+
 env:
   global:
     - LUAROCKS=2.2.0
@@ -14,13 +16,13 @@ branches:
     - master
 
 before_install:
-  - bash .travis/setup_lua.sh
+  - source .travis/setenv_lua.sh
   - bash .travis/setup_uv.sh
   - bash .travis/setup_openssl.sh
-  - sudo luarocks install lluv --server=http://rocks.moonscript.org/dev UV_DIR=$TRAVIS_BUILD_DIR/libuv
+  - luarocks install lluv --server=http://rocks.moonscript.org/dev UV_DIR=$TRAVIS_BUILD_DIR/libuv
 
 install:
-  - sudo luarocks make rockspecs/lluv-ssl-scm-0.rockspec 
+  - luarocks make rockspecs/lluv-ssl-scm-0.rockspec 
 
 script: 
   - cd test
