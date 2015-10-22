@@ -711,6 +711,10 @@ function SSLContext:server(socket)
   return SSLSocket.new(self, "server", socket)
 end
 
+function SSLContext:__tostring()
+  return "Lua-UV ssl context (" .. tostring(self._ctx) .. ")"
+end
+
 end
 
 return {
