@@ -10,6 +10,8 @@
 --
 ------------------------------------------------------------------
 
+local _VERSION = "0.1.0"
+
 local trace --= print
 
 local uv  = require "lluv"
@@ -234,12 +236,14 @@ function SSLDecoder:__init(ctx, mode)
   return self
 end
 
+-- Put `input` data from IO layer to decoder
 function SSLDecoder:input(data)
   if trace then trace("SSL IN DEC>", hex(data)) end
   self._ibuffer:append(data)
   return self
 end
 
+-- read already decoded data from ssl
 function SSLDecoder:_in_read()
   local chunk, err = self._ssl:read()
   if not chunk then
@@ -252,6 +256,7 @@ function SSLDecoder:_in_read()
   if #chunk > 0 then return chunk end
 end
 
+-- write next chunk of data to ssl to decode
 function SSLDecoder:_in_write(chunk)
   local n, err = self._inp:write(chunk)
 
@@ -268,6 +273,7 @@ function SSLDecoder:_in_write(chunk)
   return n
 end
 
+-- read decoded input data
 function SSLDecoder:read()
   ssl_clear_error()
 
@@ -298,11 +304,13 @@ function SSLDecoder:has_read()
   return self._ibuffer:empty()
 end
 
+-- write data to encode
 function SSLDecoder:write(data)
   self._obuffer:append(data)
   return self
 end
 
+-- read next chunk already encoded data
 function SSLDecoder:_out_read()
   local chunk, err = self._out:read()
   if not chunk then
@@ -315,6 +323,7 @@ function SSLDecoder:_out_read()
   end
 end
 
+-- write next chunk to ssl to encode
 function SSLDecoder:_out_write(chunk)
   local n, err = self._ssl:write(chunk)
 
@@ -333,6 +342,7 @@ function SSLDecoder:_out_write(chunk)
   return n
 end
 
+-- read next chank of output data to IO layer
 function SSLDecoder:output()
   ssl_clear_error()
 
@@ -357,10 +367,12 @@ function SSLDecoder:output()
   return
 end
 
+-- write next chunk of data to do handshake
 function SSLDecoder:handshake_write(data)
   return self._inp:write(data)
 end
 
+-- do handshake and next chunk to sendout
 function SSLDecoder:handshake()
   local ret, err = self._ssl:handshake()
   if ret == nil then
@@ -718,5 +730,6 @@ end
 end
 
 return {
-  context = function(...) return SSLContext.new(...) end
+  _VERSION = _VERSION;
+  context  = function(...) return SSLContext.new(...) end
 }
