@@ -12,7 +12,14 @@
 
 local _VERSION = "0.1.0"
 
-local trace --= print
+local trace -- = function(...) print(os.date("[SSL][%x %X]"), ...) end
+
+local traceback
+if trace then
+  local ok, stp = pcall(require, "StackTracePlus")
+  if ok then traceback = stp.stacktrace
+  else traceback = debug.traceback end
+end
 
 local uv  = require "lluv"
 local ut  = require "lluv.utils"
@@ -409,46 +416,64 @@ function SSLSocket:__init(ctx, mode, socket)
   return self
 end
 
+function SSLSocket:_invoke_handshake_cb(defer, cb, ...)
+  if self._handshake_done then return end
+  self._handshake_done = true
+  self._skt:stop_read()
+  if defer then return uv.defer(cb, self, ...) end
+  return cb(...)
+end
+
 function SSLSocket:handshake(cb)
+  -- self._handshake_done needs when
+  -- we recv first chank of handshake and send first part of response
+  -- if in this moment we get read error (e.g. EOF) we invoke callback
+  -- from `start_read`. After that we get also error in `write` callback
+  -- (in function `_handshake`) and shold not call same callback there
+
+  self._handshake_done = false
   self._skt:start_read(function(cli, err, chunk)
-    if err then return cb(self, err) end
+    if err then
+      return self:_invoke_handshake_cb(false, cb, err)
+    end
     self._dec:handshake_write(chunk)
     self:_handshake(cb)
   end)
   self:_handshake(cb)
 end
 
-function SSLSocket:_handshake(cb, err)
+function SSLSocket:_handshake(cb)
   local ret, err = self._dec:handshake()
   if ret == nil then
-    self._skt:stop_read()
-    return uv.defer(cb, self, err)
+    return self:_invoke_handshake_cb(true, cb, err)
   end
-
-  local handshake_done, write_pending = ret, false
 
   local msg = {}
   while true do
     local chunk, err = self._dec:output()
     if not chunk then 
       if err then
-        self._skt:stop_read()
-        return uv.defer(cb, self, err)
+        return self:_invoke_handshake_cb(true, cb, err)
       end
       break
     end
     msg[#msg + 1] = chunk
   end
 
+  local handshake_done, write_pending = ret, false
   if #msg > 0 then
     write_pending = true
     self._skt:write(msg, function(_, err)
       if err then
-        self._skt:stop_read()
-        return cb(self, err)
+        return self:_invoke_handshake_cb(false, cb, err)
       end
-      if handshake_done then cb(self)
-      else self:_handshake(cb) end
+
+      -- if we send last chank of handshake
+      if handshake_done then
+        return self:_invoke_handshake_cb(false, cb)
+      end
+
+      return self:_handshake(cb)
     end)
   end
 
@@ -458,7 +483,7 @@ function SSLSocket:_handshake(cb, err)
   self._skt:stop_read()
 
   if not write_pending then
-    uv.defer(cb, self)
+    return self:_invoke_handshake_cb(true, cb)
   end
 end
 
