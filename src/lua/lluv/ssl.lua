@@ -421,7 +421,7 @@ function SSLSocket:_invoke_handshake_cb(defer, cb, ...)
   self._handshake_done = true
   self._skt:stop_read()
   if defer then return uv.defer(cb, self, ...) end
-  return cb(...)
+  return cb(self, ...)
 end
 
 function SSLSocket:handshake(cb)
