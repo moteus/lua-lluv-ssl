@@ -1,25 +1,40 @@
 language: c
 
+python:
+  - "2.7"
+
 sudo: false
 
-env:
-  global:
-    - LUAROCKS=2.2.0
-  matrix:
-    - LUA=lua5.1
-    # - LUA=lua5.2
-    # - LUA=lua5.3
-    # - LUA=luajit
+matrix:
+  include:
+    - compiler: ": Lua51"
+      env: LUA="lua 5.1"
+    - compiler: ": Lua52"
+      env: LUA="lua 5.2"
+    - compiler: ": Lua53"
+      env: LUA="lua 5.3"
+    - compiler: ": LuaJIT20"
+      env: LUA="luajit 2.0"
+    - compiler: ": LuaJIT21"
+      env: LUA="luajit 2.1"
+
+cache:
+  directories:
+    - here
+    - $HOME/.cache/pip
 
 branches:
   only:
     - master
 
 before_install:
-  - source .travis/setenv_lua.sh
-  - bash .travis/setup_uv.sh
-  - bash .travis/setup_openssl.sh
-  - luarocks install lluv --server=http://rocks.moonscript.org/dev UV_DIR=$TRAVIS_BUILD_DIR/libuv
+  - export CC=gcc
+  - pip install --user hererocks
+  - hererocks here -r^ --$LUA
+  - export PATH=$PATH:$PWD/here/bin
+  - luarocks show lluv || bash .travis/setup_uv.sh
+  - luarocks show lluv || bash .travis/setup_openssl.sh
+  - luarocks show lluv || luarocks install lluv --server=http://rocks.moonscript.org/dev UV_DIR=$TRAVIS_BUILD_DIR/libuv
 
 install:
   - luarocks make rockspecs/lluv-ssl-scm-0.rockspec 
@@ -30,9 +45,6 @@ script:
   - lua test_large_chunk.lua 65535
   - lua test_large_chunk.lua 1048576
   - lua test_large_chunk.lua 16777216
-
-# after_success:
-#   - luacov-coveralls -j c.report.json
 
 notifications:
   email:
