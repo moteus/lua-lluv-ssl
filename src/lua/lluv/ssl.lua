@@ -10,7 +10,7 @@
 --
 ------------------------------------------------------------------
 
-local _VERSION = "0.1.0"
+local _VERSION = "0.1.1"
 
 local trace -- = function(...) print(os.date("[SSL][%x %X]"), ...) end
 
