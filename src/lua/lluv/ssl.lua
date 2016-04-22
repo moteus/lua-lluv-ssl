@@ -801,6 +801,7 @@ end
 end
 
 return {
+  _NAME    = "lluv.ssl";
   _VERSION = _VERSION;
   context  = function(...) return SSLContext.new(...) end
 }
