@@ -12,7 +12,7 @@
 
 local SSL = {
   _NAME      = "lluv.ssl";
-  _VERSION   = "0.1.2";
+  _VERSION   = "0.1.3-dev";
   _COPYRIGHT = "Copyright (C) 2015-2016 Alexey Melnichuk";
   _LICENSE   = "MIT";
 }
