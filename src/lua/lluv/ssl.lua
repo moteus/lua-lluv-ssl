@@ -10,7 +10,12 @@
 --
 ------------------------------------------------------------------
 
-local _VERSION = "0.1.2-dev"
+local SSL = {
+  _NAME      = "lluv.ssl";
+  _VERSION   = "0.1.2";
+  _COPYRIGHT = "Copyright (C) 2015-2016 Alexey Melnichuk";
+  _LICENSE   = "MIT";
+}
 
 local trace -- = function(...) print(os.date("[SSL][%x %X]"), ...) end
 
@@ -70,6 +75,14 @@ local function chunks(msg, chunk_size, len)
 end
 
 local unpack = table.unpack or unpack
+
+local function clone(t, o)
+  o = o or {}
+  for k, v in pairs(t) do
+    o[k] = v
+  end
+  return o
+end
 
 local verify_map = {
   none                 = ssl.ssl.none;
@@ -800,8 +813,8 @@ end
 
 end
 
-return {
-  _NAME    = "lluv.ssl";
-  _VERSION = _VERSION;
+SSL = clone(SSL, {
   context  = function(...) return SSLContext.new(...) end
-}
+})
+
+return SSL
